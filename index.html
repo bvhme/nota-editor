@@ -101,12 +101,12 @@
     position: absolute;
     left: 18mm;
     right: 18mm;
-    top: 130.5mm; /* 148.5mm (halve A4) minus 18mm bovenmarge */
+    top: 261mm; /* onderkant inhoud (onderste helft): 18mm marge + 261mm = 279mm vanaf paginatop */
     border-top: 2px dashed rgba(220,38,38,.55);
     pointer-events: none;
   }
   .half-line::after {
-    content: "grens ½ A4";
+    content: "grens ½ A4 inhoud";
     position: absolute;
     right: 0;
     top: -16px;
@@ -128,7 +128,11 @@
   }
   .page-warning.show { display: block; }
 
-  .nota-head { margin-bottom: 14mm; }
+  .nota-head {
+    height: 130.5mm; /* aanhef + header nemen de bovenste helft van pagina 1 in */
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--line);
+  }
   .nota-head input {
     border: none;
     outline: none;
@@ -151,6 +155,7 @@
   .sec-head { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 3px; margin-bottom: 4px; }
   .sec-head h2 { font-size: 16px; margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
   .counter { font-size: 11px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .sec-head .add { margin: 0 0 0 8px; font-size: 11px; padding: 1px 8px; }
   .words { font-size: 11px; color: var(--muted); margin-left: auto; }
 
   .hint { font-size: 12px; color: var(--muted); background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 10px; margin: 6px 0; }
@@ -255,7 +260,6 @@
     }
     .sheet:last-child { page-break-after: auto; }
     .pt:focus, .rich:focus { background: transparent; border-color: transparent; }
-    .nota-head { margin-bottom: 10mm; }
   }
 </style>
 </head>
@@ -288,33 +292,18 @@
             </div>
 
             <section class="nota-section" data-type="points" data-list="ol" data-key="aanleiding">
-              <div class="sec-head"><h2>Aanleiding</h2><span class="counter no-print" data-counter></span></div>
-              <details class="hint no-print" open>
-                <summary>Begeleiding</summary>
-                <p>Waarom ligt dit besluit nu voor? Beschrijf de aanleiding in maximaal <b>3 punten</b>, in volgordelijkheid (van eerste naar laatste).</p>
-              </details>
+              <div class="sec-head"><h2>Aanleiding</h2><span class="counter no-print" data-counter></span><button type="button" class="add no-print">+ punt</button></div>
               <ol class="points"></ol>
-              <button type="button" class="add no-print">+ punt toevoegen</button>
             </section>
 
             <section class="nota-section" data-type="points" data-list="ul" data-key="advies">
-              <div class="sec-head"><h2>Advies</h2><span class="counter no-print" data-counter></span></div>
-              <details class="hint no-print" open>
-                <summary>Begeleiding</summary>
-                <p>Welk besluit of welke handeling wordt geadviseerd? Maximaal <b>3 punten</b>; zet het <b>belangrijkste bovenaan</b> (gebruik ▲ ▼ om te sorteren).</p>
-              </details>
+              <div class="sec-head"><h2>Advies</h2><span class="counter no-print" data-counter></span><button type="button" class="add no-print">+ punt</button></div>
               <ul class="points"></ul>
-              <button type="button" class="add no-print">+ punt toevoegen</button>
             </section>
 
             <section class="nota-section" data-type="points" data-list="ul" data-key="kern">
-              <div class="sec-head"><h2>Kern</h2><span class="counter no-print" data-counter></span></div>
-              <details class="hint no-print" open>
-                <summary>Begeleiding</summary>
-                <p>Wat is de kern van het probleem? Maximaal <b>3 punten</b>; zet het <b>belangrijkste bovenaan</b> (gebruik ▲ ▼ om te sorteren).</p>
-              </details>
+              <div class="sec-head"><h2>Kern</h2><span class="counter no-print" data-counter></span><button type="button" class="add no-print">+ punt</button></div>
               <ul class="points"></ul>
-              <button type="button" class="add no-print">+ punt toevoegen</button>
             </section>
           </div>
         </div>
@@ -333,10 +322,6 @@
 
             <section class="nota-section" data-type="rich" data-key="toelichting">
               <div class="sec-head"><h2>Toelichting</h2><span class="words no-print" data-words></span></div>
-              <details class="hint no-print" open>
-                <summary>Begeleiding</summary>
-                <p>Onderbouw het advies: feiten, afwegingen en context. Een pagina A4 is genoeg.</p>
-              </details>
               <div class="toolbar no-print">
                 <button type="button" data-cmd="bold"><b>B</b></button>
                 <button type="button" data-cmd="italic"><i>I</i></button>
@@ -351,10 +336,6 @@
 
             <section class="nota-section" data-type="rich" data-key="vervolg">
               <div class="sec-head"><h2>Vervolg en proces</h2><span class="words no-print" data-words></span></div>
-              <details class="hint no-print" open>
-                <summary>Begeleiding</summary>
-                <p>Wat gebeurt er na het besluit? Noem vervolgstappen, mijlpalen, termijnen en verantwoordelijkheden.</p>
-              </details>
               <div class="toolbar no-print">
                 <button type="button" data-cmd="bold"><b>B</b></button>
                 <button type="button" data-cmd="italic"><i>I</i></button>
@@ -395,6 +376,32 @@
     <p>Begin elke nota met de vraag die beantwoord wordt. Houd pagina 1 kort: de lezer moet in 30 seconden weten wat er wordt voorgesteld. Zet bij Advies en Kern het belangrijkste punt bovenaan — de ▲ ▼ knoppen sorteren de punten.</p>
     <p>De rode stippellijn op pagina 1 markeert de grens van ½ A4. Komt je tekst eronderuit, dan verschijnt er een melding.</p>
     <p>Je nota wordt automatisch tussentijds opgeslagen in deze browser. Met <b>Afdrukken / PDF</b> maak je een nette A4-uitprint.</p>
+    <h2>Begeleiding per sectie</h2>
+    <h3>Aanleiding</h3>
+    <details class="hint" open data-hint="aanleiding">
+      <summary>Hoe schrijf je de aanleiding?</summary>
+      <p>Waarom ligt dit besluit nu voor? Beschrijf de aanleiding in maximaal <b>3 punten</b>, in volgordelijkheid (van eerste naar laatste).</p>
+    </details>
+    <h3>Advies</h3>
+    <details class="hint" open data-hint="advies">
+      <summary>Hoe formuleer je het advies?</summary>
+      <p>Welk besluit of welke handeling wordt geadviseerd? Maximaal <b>3 punten</b>; zet het <b>belangrijkste bovenaan</b> (gebruik ▲ ▼ om te sorteren).</p>
+    </details>
+    <h3>Kern</h3>
+    <details class="hint" open data-hint="kern">
+      <summary>Hoe beschrijf je de kern?</summary>
+      <p>Wat is de kern van het probleem? Maximaal <b>3 punten</b>; zet het <b>belangrijkste bovenaan</b> (gebruik ▲ ▼ om te sorteren).</p>
+    </details>
+    <h3>Toelichting</h3>
+    <details class="hint" open data-hint="toelichting">
+      <summary>Hoe schrijf je de toelichting?</summary>
+      <p>Onderbouw het advies: feiten, afwegingen en context. Een pagina A4 is genoeg.</p>
+    </details>
+    <h3>Vervolg en proces</h3>
+    <details class="hint" open data-hint="vervolg">
+      <summary>Hoe beschrijf je het vervolg?</summary>
+      <p>Wat gebeurt er na het besluit? Noem vervolgstappen, mijlpalen, termijnen en verantwoordelijkheden.</p>
+    </details>
   </aside>
 </div>
 
@@ -440,7 +447,7 @@
   }
 
   function flashHint(section) {
-    var hint = $('.hint', section);
+    var hint = $('.hint[data-hint="' + section.dataset.key + '"]');
     if (!hint) return;
     hint.open = true;
     hint.classList.remove('shake');
