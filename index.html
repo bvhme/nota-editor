@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nota-editor</title>
+<style>
+  :root {
+    --ink: #1a1a1a;
+    --muted: #6b7280;
+    --accent: #1d4ed8;
+    --danger: #dc2626;
+    --line: #d1d5db;
+    --paper: #ffffff;
+    --bg: #eef1f5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    background: #111827;
+    color: #f9fafb;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .app-header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  .app-header .spacer { flex: 1; }
+  .app-header button {
+    font: inherit;
+    padding: 6px 14px;
+    border: 1px solid #4b5563;
+    background: #1f2937;
+    color: #f9fafb;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .app-header button:hover { background: #374151; }
+  .app-header button.primary { background: var(--accent); border-color: var(--accent); }
+  .app-header button.primary:hover { background: #1e40af; }
+  #save-status { font-size: 12px; color: #9ca3af; min-width: 150px; text-align: right; }
+
+  .layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 24px;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  #workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 32px; align-items: center; }
+
+  .sheet-wrap { position: relative; }
+  .stage { position: relative; width: 210mm; height: 297mm; }
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    background: var(--paper);
+    box-shadow: 0 4px 18px rgba(0,0,0,.18);
+    transform: scale(var(--s, 1));
+    transform-origin: top left;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  .sheet-inner {
+    position: relative;
+    padding: 18mm 18mm 18mm 18mm;
+    height: 100%;
+  }
+  .page-label {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .page-meter {
+    height: 6px;
+    background: #d1d5db;
+    border-radius: 3px;
+    margin: 6px auto 0;
+    width: 100%;
+  }
+  .page-meter > div { height: 100%; border-radius: 3px; background: #16a34a; width: 0; transition: width .2s, background .2s; }
+  .page-meter.over > div { background: var(--danger); }
+  .page-meter-label { font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
+  .page-meter-label.over { color: var(--danger); font-weight: 600; }
+
+  .half-line {
+    position: absolute;
+    left: 18mm;
+    right: 18mm;
+    top: 130.5mm; /* 148.5mm (halve A4) minus 18mm bovenmarge */
+    border-top: 2px dashed rgba(220,38,38,.55);
+    pointer-events: none;
+  }
+  .half-line::after {
+    content: "grens ½ A4";
+    position: absolute;
+    right: 0;
+    top: -16px;
+    font-size: 10px;
+    color: rgba(220,38,38,.75);
+    background: var(--paper);
+    padding: 0 4px;
+  }
+  .page-warning {
+    display: none;
+    margin-top: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--danger);
+    background: #fef2f2;
+    color: var(--danger);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .page-warning.show { display: block; }
+
+  .nota-head { margin-bottom: 14mm; }
+  .nota-head input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: var(--ink);
+    width: 100%;
+  }
+  #titel { font-size: 22px; font-weight: 700; }
+  #titel::placeholder { color: #9ca3af; font-weight: 600; }
+  .meta { display: flex; gap: 16px; margin-top: 6mm; flex-wrap: wrap; }
+  .meta label { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 120px; }
+  .meta input {
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    padding: 2px 0;
+  }
+
+  .nota-section { margin-bottom: 8mm; }
+  .sec-head { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 3px; margin-bottom: 4px; }
+  .sec-head h2 { font-size: 16px; margin: 0; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+  .counter { font-size: 11px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .words { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  .hint { font-size: 12px; color: var(--muted); background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 10px; margin: 6px 0; }
+  .hint summary { cursor: pointer; font-weight: 600; color: #374151; }
+  .hint p { margin: 6px 0 2px; }
+  .hint.shake { animation: shake .35s; border-color: var(--danger); }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+  ol.points, ul.points { margin: 4px 0; padding-left: 22px; }
+  ol.points li, ul.points li { position: relative; padding-right: 70px; margin: 3px 0; }
+  .pt { outline: none; display: inline-block; min-width: 60%; }
+  .pt:empty::before { content: attr(data-placeholder); color: #9ca3af; }
+  .pt:focus { background: #eff6ff; border-radius: 3px; }
+  .ctrl { position: absolute; right: 0; top: 0; display: none; gap: 2px; }
+  li:hover .ctrl, .ctrl:focus-within { display: inline-flex; }
+  .ctrl button {
+    font-size: 9px;
+    line-height: 1;
+    padding: 3px 5px;
+    border: 1px solid var(--line);
+    background: #f9fafb;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #374151;
+  }
+  .ctrl button:hover { background: #e5e7eb; }
+  .add {
+    font: inherit;
+    font-size: 12px;
+    margin-top: 4px;
+    padding: 3px 10px;
+    border: 1px dashed var(--line);
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .add:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .add:disabled { opacity: .4; cursor: not-allowed; }
+
+  .toolbar { display: flex; gap: 4px; margin: 4px 0; }
+  .toolbar button {
+    font: inherit;
+    font-size: 12px;
+    min-width: 28px;
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    background: #f9fafb;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .toolbar button:hover { background: #e5e7eb; }
+  .rich {
+    min-height: 60px;
+    outline: none;
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+  }
+  .rich:focus { border-color: var(--line); background: #fff; }
+  .rich:empty::before { content: attr(data-placeholder); color: #9ca3af; }
+  .rich p { margin: 4px 0; }
+
+  .guide {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-size: 13px;
+    position: sticky;
+    top: 64px;
+  }
+  .guide h2 { font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .03em; }
+  .guide h3 { font-size: 13px; margin: 12px 0 4px; }
+  .guide ul, .guide ol { margin: 4px 0; padding-left: 20px; }
+  .guide li { margin: 2px 0; }
+  .guide .tag { font-size: 11px; color: var(--muted); }
+  .guide p { margin: 6px 0; color: #374151; }
+
+  @media (max-width: 1150px) {
+    .layout { flex-direction: column; align-items: center; }
+    .guide { position: static; width: 100%; max-width: 794px; order: -1; }
+  }
+
+  @media print {
+    @page { size: A4; margin: 0; }
+    body { background: #fff; }
+    .app-header, .guide, .no-print, .page-label, .page-meter, .page-meter-label, .page-warning, .half-line { display: none !important; }
+    .layout { display: block; padding: 0; max-width: none; }
+    #workspace { display: block; }
+    .sheet-wrap { width: auto !important; }
+    .stage { width: auto !important; height: auto !important; }
+    .sheet {
+      position: static !important;
+      transform: none !important;
+      box-shadow: none;
+      page-break-after: always;
+      width: 210mm;
+      height: 297mm;
+    }
+    .sheet:last-child { page-break-after: auto; }
+    .pt:focus, .rich:focus { background: transparent; border-color: transparent; }
+    .nota-head { margin-bottom: 10mm; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header no-print">
+  <h1>Nota-editor</h1>
+  <div class="spacer"></div>
+  <span id="save-status">Niet opgeslagen</span>
+  <button type="button" id="btn-new">Nieuwe nota</button>
+  <button type="button" id="btn-print" class="primary">Afdrukken / PDF</button>
+</header>
+
+<div class="layout">
+  <main id="workspace">
+
+    <div class="sheet-wrap">
+      <div class="stage">
+      <div class="sheet" id="sheet1">
+        <div class="sheet-inner">
+          <div class="half-line no-print"></div>
+          <div class="doc" id="doc1">
+            <div class="nota-head">
+              <input id="titel" type="text" placeholder="Titel van de nota" autocomplete="off">
+              <div class="meta">
+                <label>Datum<input id="datum" type="date"></label>
+                <label>Opsteller<input id="opsteller" type="text" placeholder="Naam" autocomplete="off"></label>
+                <label>Betreft<input id="betreft" type="text" placeholder="Kort onderwerp" autocomplete="off"></label>
+              </div>
+            </div>
+
+            <section class="nota-section" data-type="points" data-list="ol" data-key="aanleiding">
+              <div class="sec-head"><h2>Aanleiding</h2><span class="counter no-print" data-counter></span></div>
+              <details class="hint no-print" open>
+                <summary>Begeleiding</summary>
+                <p>Waarom ligt dit besluit nu voor? Beschrijf de aanleiding in maximaal <b>3 punten</b>, in volgordelijkheid (van eerste naar laatste).</p>
+              </details>
+              <ol class="points"></ol>
+              <button type="button" class="add no-print">+ punt toevoegen</button>
+            </section>
+
+            <section class="nota-section" data-type="points" data-list="ul" data-key="advies">
+              <div class="sec-head"><h2>Advies</h2><span class="counter no-print" data-counter></span></div>
+              <details class="hint no-print" open>
+                <summary>Begeleiding</summary>
+                <p>Welk besluit of welke handeling wordt geadviseerd? Maximaal <b>3 punten</b>; zet het <b>belangrijkste bovenaan</b> (gebruik ▲ ▼ om te sorteren).</p>
+              </details>
+              <ul class="points"></ul>
+              <button type="button" class="add no-print">+ punt toevoegen</button>
+            </section>
+
+            <section class="nota-section" data-type="points" data-list="ul" data-key="kern">
+              <div class="sec-head"><h2>Kern</h2><span class="counter no-print" data-counter></span></div>
+              <details class="hint no-print" open>
+                <summary>Begeleiding</summary>
+                <p>Wat is de kern van het probleem? Maximaal <b>3 punten</b>; zet het <b>belangrijkste bovenaan</b> (gebruik ▲ ▼ om te sorteren).</p>
+              </details>
+              <ul class="points"></ul>
+              <button type="button" class="add no-print">+ punt toevoegen</button>
+            </section>
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="page-meter" id="meter1"><div></div></div>
+      <div class="page-meter-label" id="meter1-label">Pagina 1 · 0% van ½ A4</div>
+      <div class="page-warning no-print" id="warn1">Pagina 1 is langer dan ½ A4 — kort in voordat je afdrukt.</div>
+    </div>
+
+    <div class="sheet-wrap">
+      <div class="stage">
+      <div class="sheet" id="sheet2">
+        <div class="sheet-inner">
+          <div class="doc" id="doc2">
+
+            <section class="nota-section" data-type="rich" data-key="toelichting">
+              <div class="sec-head"><h2>Toelichting</h2><span class="words no-print" data-words></span></div>
+              <details class="hint no-print" open>
+                <summary>Begeleiding</summary>
+                <p>Onderbouw het advies: feiten, afwegingen en context. Een pagina A4 is genoeg.</p>
+              </details>
+              <div class="toolbar no-print">
+                <button type="button" data-cmd="bold"><b>B</b></button>
+                <button type="button" data-cmd="italic"><i>I</i></button>
+                <button type="button" data-cmd="underline"><u>U</u></button>
+                <button type="button" data-cmd="insertUnorderedList">• lijst</button>
+                <button type="button" data-cmd="insertOrderedList">1. lijst</button>
+                <button type="button" data-cmd="undo">↺</button>
+                <button type="button" data-cmd="redo">↻</button>
+              </div>
+              <div class="rich" contenteditable="true" data-placeholder="Schrijf hier de toelichting…"></div>
+            </section>
+
+            <section class="nota-section" data-type="rich" data-key="vervolg">
+              <div class="sec-head"><h2>Vervolg en proces</h2><span class="words no-print" data-words></span></div>
+              <details class="hint no-print" open>
+                <summary>Begeleiding</summary>
+                <p>Wat gebeurt er na het besluit? Noem vervolgstappen, tornaarden, termijnen en verantwoordelijkheden.</p>
+              </details>
+              <div class="toolbar no-print">
+                <button type="button" data-cmd="bold"><b>B</b></button>
+                <button type="button" data-cmd="italic"><i>I</i></button>
+                <button type="button" data-cmd="underline"><u>U</u></button>
+                <button type="button" data-cmd="insertUnorderedList">• lijst</button>
+                <button type="button" data-cmd="insertOrderedList">1. lijst</button>
+                <button type="button" data-cmd="undo">↺</button>
+                <button type="button" data-cmd="redo">↻</button>
+              </div>
+              <div class="rich" contenteditable="true" data-placeholder="Schrijf hier het vervolg en het proces…"></div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="page-meter" id="meter2"><div></div></div>
+      <div class="page-meter-label" id="meter2-label">Pagina 2 · 0% van 1 A4</div>
+      <div class="page-warning no-print" id="warn2">Pagina 2 is langer dan 1 A4 — kort in voordat je afdrukt.</div>
+    </div>
+
+  </main>
+
+  <aside class="guide no-print">
+    <h2>Vaste vorm van een nota</h2>
+    <h3>Pagina 1 — maximaal ½ A4</h3>
+    <ol>
+      <li><b>Aanleiding</b> <span class="tag">max. 3 punten, in volgordelijkheid</span></li>
+      <li><b>Advies</b> <span class="tag">max. 3 punten, belangrijkste boven</span></li>
+      <li><b>Kern</b> <span class="tag">max. 3 punten, belangrijkste boven</span></li>
+    </ol>
+    <h3>Pagina 2 — maximaal 1 A4</h3>
+    <ul>
+      <li><b>Toelichting</b></li>
+      <li><b>Vervolg en proces</b></li>
+    </ul>
+    <h3>Schrijftips</h3>
+    <p>Begin elke nota met de vraag die beantwoord wordt. Houd pagina 1 kort: de lezer moet in 30 seconden weten wat er wordt voorgesteld. Zet bij Advies en Kern het belangrijkste punt bovenaan — de ▲ ▼ knoppen sorteren de punten.</p>
+    <p>De rode stippellijn op pagina 1 markeert de grens van ½ A4. Komt je tekst eronderuit, dan verschijnt er een melding.</p>
+    <p>Je nota wordt automatisch tussentijds opgeslagen in deze browser. Met <b>Afdrukken / PDF</b> maak je een nette A4-uitprint.</p>
+  </aside>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  var MM = 96 / 25.4;
+  var SHEET_W = 210 * MM;
+  var SHEET_H = 297 * MM;
+  var LIMIT1 = (297 / 2 - 18) * MM;  // halve A4 minus bovenmarge van de pagina
+  var LIMIT2 = (297 - 36) * MM;      // hele A4 minus beide marges
+  var LS_KEY = 'nota-editor-v1';
+  var MAX_POINTS = 3;
+
+  function makePointLi(text) {
+    var li = document.createElement('li');
+    var span = document.createElement('span');
+    span.className = 'pt';
+    span.contentEditable = 'true';
+    span.spellcheck = true;
+    span.textContent = text || '';
+    var ctrl = document.createElement('span');
+    ctrl.className = 'ctrl no-print';
+    ctrl.innerHTML =
+      '<button type="button" class="mv up" title="Omhoog">▲</button>' +
+      '<button type="button" class="mv down" title="Omlaag">▼</button>';
+    li.appendChild(span);
+    li.appendChild(ctrl);
+    return li;
+  }
+
+  function placeCaretEnd(el) {
+    var r = document.createRange();
+    r.selectNodeContents(el);
+    r.collapse(false);
+    var s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+
+  function flashHint(section) {
+    var hint = $('.hint', section);
+    if (!hint) return;
+    hint.open = true;
+    hint.classList.remove('shake');
+    void hint.offsetWidth;
+    hint.classList.add('shake');
+  }
+
+  function updateCounters() {
+    $$('.nota-section[data-type="points"]').forEach(function (sec) {
+      var list = $('.points', sec);
+      var items = $$('li', list);
+      var filled = items.filter(function (li) { return $('.pt', li).textContent.trim() !== ''; }).length;
+      var counter = $('[data-counter]', sec);
+      if (counter) counter.textContent = filled + '/' + MAX_POINTS + ' punten';
+      var add = $('.add', sec);
+      if (add) add.disabled = items.length >= MAX_POINTS;
+      items.forEach(function (li, i) {
+        $('.pt', li).dataset.placeholder = 'Punt ' + (i + 1) + '…';
+      });
+    });
+  }
+
+  function measuredHeight(doc) {
+    var ui = 0;
+    $$('.no-print', doc).forEach(function (el) {
+      var cs = window.getComputedStyle(el);
+      if (cs.position !== 'absolute' && cs.display !== 'none') {
+        ui += el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+      }
+    });
+    return doc.scrollHeight - ui;
+  }
+
+  function wordCount(el) {
+    var t = el.textContent || '';
+    var w = t.trim().split(/\s+/).filter(Boolean);
+    return w.length;
+  }
+
+  function updateMeters() {
+    [['#doc1', LIMIT1, '#meter1', '#meter1-label', '#warn1', '½ A4'],
+     ['#doc2', LIMIT2, '#meter2', '#meter2-label', '#warn2', '1 A4']].forEach(function (cfg) {
+      var doc = $(cfg[0]);
+      var h = measuredHeight(doc);
+      var pct = Math.max(0, Math.min(100, Math.round((h / cfg[1]) * 100)));
+      var meter = $(cfg[2]);
+      var label = $(cfg[3]);
+      var warn = $(cfg[4]);
+      $('div', meter).style.width = pct + '%';
+      meter.classList.toggle('over', h > cfg[1]);
+      label.classList.toggle('over', h > cfg[1]);
+      label.textContent = 'Pagina ' + (cfg[0] === '#doc1' ? 1 : 2) + ' · ' + pct + '% van ' + cfg[5] + ' · ' + wordCount(doc) + ' woorden';
+      warn.classList.toggle('show', h > cfg[1]);
+    });
+    $$('.nota-section[data-type="rich"]').forEach(function (sec) {
+      var w = $('[data-words]', sec);
+      if (w) w.textContent = wordCount($('.rich', sec)) + ' woorden';
+    });
+  }
+
+  function collect() {
+    var points = {};
+    $$('.nota-section[data-type="points"]').forEach(function (sec) {
+      points[sec.dataset.key] = $$('.pt', sec).map(function (s) { return s.textContent; });
+    });
+    var rich = {};
+    $$('.nota-section[data-type="rich"]').forEach(function (sec) {
+      rich[sec.dataset.key] = $('.rich', sec).innerHTML;
+    });
+    return {
+      titel: $('#titel').value,
+      datum: $('#datum').value,
+      opsteller: $('#opsteller').value,
+      betreft: $('#betreft').value,
+      points: points,
+      rich: rich
+    };
+  }
+
+  var saveTimer = null;
+  function save() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(collect()));
+      var now = new Date();
+      $('#save-status').textContent = 'Opgeslagen om ' +
+        String(now.getHours()).padStart(2, '0') + ':' +
+        String(now.getMinutes()).padStart(2, '0') + ':' +
+        String(now.getSeconds()).padStart(2, '0');
+    } catch (e) { /* opslag niet beschikbaar */ }
+  }
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { save(); updateMeters(); }, 250);
+  }
+
+  function load() {
+    var data = null;
+    try { data = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) { data = null; }
+    if (!data) {
+      $('#datum').value = new Date().toISOString().slice(0, 10);
+      return;
+    }
+    $('#titel').value = data.titel || '';
+    $('#datum').value = data.datum || '';
+    $('#opsteller').value = data.opsteller || '';
+    $('#betreft').value = data.betreft || '';
+    $$('.nota-section[data-type="points"]').forEach(function (sec) {
+      var list = $('.points', sec);
+      list.innerHTML = '';
+      var arr = (data.points && data.points[sec.dataset.key]) || [''];
+      if (!arr.length) arr = [''];
+      arr.slice(0, MAX_POINTS).forEach(function (t) { list.appendChild(makePointLi(t)); });
+    });
+    $$('.nota-section[data-type="rich"]').forEach(function (sec) {
+      $('.rich', sec).innerHTML = (data.rich && data.rich[sec.dataset.key]) || '';
+    });
+  }
+
+  function fitSheets() {
+    var avail = $('#workspace').clientWidth || SHEET_W;
+    var scale = Math.min(1, avail / SHEET_W);
+    $$('.sheet-wrap').forEach(function (wrap) {
+      wrap.style.setProperty('--s', scale);
+      wrap.style.width = (SHEET_W * scale) + 'px';
+      var stage = $('.stage', wrap);
+      stage.style.width = (SHEET_W * scale) + 'px';
+      stage.style.height = (SHEET_H * scale) + 'px';
+    });
+  }
+
+  // --- puntlijsten (max 3, sorteren) ---
+  $$('.nota-section[data-type="points"]').forEach(function (sec) {
+    var list = $('.points', sec);
+
+    list.addEventListener('keydown', function (e) {
+      var span = e.target.closest('.pt');
+      if (!span) return;
+      var li = span.parentElement;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!span.textContent.trim()) return;
+        if (list.children.length < MAX_POINTS) {
+          var nli = makePointLi('');
+          li.after(nli);
+          placeCaretEnd($('.pt', nli));
+        } else {
+          flashHint(sec);
+        }
+        updateCounters();
+        saveSoon();
+      } else if (e.key === 'Backspace' && span.textContent === '') {
+        e.preventDefault();
+        if (list.children.length > 1) {
+          var prev = li.previousElementSibling;
+          li.remove();
+          if (prev) placeCaretEnd($('.pt', prev));
+          updateCounters();
+          saveSoon();
+        }
+      }
+    });
+
+    list.addEventListener('paste', function (e) {
+      var span = e.target.closest('.pt');
+      if (!span) return;
+      e.preventDefault();
+      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text.replace(/\s+/g, ' ').trim());
+    });
+
+    list.addEventListener('click', function (e) {
+      var btn = e.target.closest('.mv');
+      if (!btn) return;
+      var li = btn.closest('li');
+      if (btn.classList.contains('up') && li.previousElementSibling) {
+        li.parentElement.insertBefore(li, li.previousElementSibling);
+      } else if (btn.classList.contains('down') && li.nextElementSibling) {
+        li.parentElement.insertBefore(li.nextElementSibling, li);
+      }
+      updateCounters();
+      saveSoon();
+    });
+
+    var add = $('.add', sec);
+    if (add) {
+      add.addEventListener('click', function () {
+        if (list.children.length >= MAX_POINTS) { flashHint(sec); return; }
+        var li = makePointLi('');
+        list.appendChild(li);
+        placeCaretEnd($('.pt', li));
+        updateCounters();
+        saveSoon();
+      });
+    }
+  });
+
+  // --- opmaakbalk voor vrije tekst ---
+  $$('.toolbar').forEach(function (bar) {
+    bar.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-cmd]');
+      if (!btn) return;
+      var rich = bar.parentElement.querySelector('.rich');
+      rich.focus();
+      document.execCommand(btn.dataset.cmd, false, null);
+      saveSoon();
+    });
+  });
+
+  $$('.rich').forEach(function (rich) {
+    rich.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+  });
+
+  document.addEventListener('input', function () {
+    updateCounters();
+    saveSoon();
+  });
+
+  $('#btn-print').addEventListener('click', function () { window.print(); });
+  $('#btn-new').addEventListener('click', function () {
+    if (window.confirm('Nieuwe lege nota starten? De huidige nota wordt gewist.')) {
+      try { localStorage.removeItem(LS_KEY); } catch (e) {}
+      window.location.reload();
+    }
+  });
+
+  window.addEventListener('resize', function () { fitSheets(); updateMeters(); });
+
+  // init: start elke puntlijst met één leeg punt
+  $$('.nota-section[data-type="points"]').forEach(function (sec) {
+    $('.points', sec).appendChild(makePointLi(''));
+  });
+
+  load();
+  updateCounters();
+  updateMeters();
+  fitSheets();
+})();
+</script>
+</body>
+</html>
